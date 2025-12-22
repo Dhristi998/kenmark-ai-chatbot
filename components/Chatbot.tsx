@@ -36,11 +36,11 @@ export default function Chatbot() {
       ...prev,
       { role: "bot", text: data.reply }
     ]);
-  } catch (error) {
-    setMessages(prev => [
-      ...prev,
-      { role: "bot", text: "Something went wrong. Please try again." }
-    ]);
+  } catch {
+  setMessages((prev) => [
+    ...prev,
+    { role: "bot", content: "Backend error occurred." },
+  ]);
   } finally {
     setTyping(false);
   }
