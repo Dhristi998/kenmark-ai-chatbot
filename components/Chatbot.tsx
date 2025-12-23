@@ -39,7 +39,7 @@ export default function Chatbot() {
   } catch {
   setMessages((prev) => [
     ...prev,
-    { role: "bot", content: "Backend error occurred." },
+    { role: "bot", text: "Backend error occurred." },
   ]);
   } finally {
     setTyping(false);
