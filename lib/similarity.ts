@@ -1,13 +1,13 @@
 export function cosineSimilarity(a: number[], b: number[]) {
   let dot = 0;
-  let normA = 0;
-  let normB = 0;
+  let magA = 0;
+  let magB = 0;
 
   for (let i = 0; i < a.length; i++) {
     dot += a[i] * b[i];
-    normA += a[i] * a[i];
-    normB += b[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
   }
 
-  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB));
 }
