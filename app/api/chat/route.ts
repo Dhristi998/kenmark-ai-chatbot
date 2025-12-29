@@ -7,13 +7,10 @@ export async function POST(req: Request) {
     const { message } = await req.json();
 
     const context = await retrieveContext(message);
-    console.log("Retrieved context:", context);
-
     const reply = await generateAnswer(context, message);
 
     return NextResponse.json({ reply });
-  } catch (error) {
-    console.error("API ERROR:", error);
+  } catch {
     return NextResponse.json(
       { reply: "Backend error occurred." },
       { status: 500 }

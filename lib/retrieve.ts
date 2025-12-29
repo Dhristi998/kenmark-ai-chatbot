@@ -1,22 +1,40 @@
-import knowledge from "@/data/knowledge.json";
+import { loadKnowledge } from "./loadExcel";
 import { getEmbedding } from "./embed";
 import { cosineSimilarity } from "./similarity";
 
+const SIMILARITY_THRESHOLD = 0.4;
+
 export async function retrieveContext(query: string): Promise<string | null> {
-  const queryEmbedding = await getEmbedding(query);
+  const knowledge = loadKnowledge();
 
-  let bestScore = -1;
-  let bestAnswer: string | null = null;
+  // 1️⃣ DIRECT STRING MATCH (MOST IMPORTANT)
+  const lowerQuery = query.toLowerCase();
 
-  for (const item of knowledge) {
-    const itemEmbedding = await getEmbedding(item.keyword);
-    const score = cosineSimilarity(queryEmbedding, itemEmbedding);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestAnswer = item.answer;
+  for (const row of knowledge) {
+    if (row.text.toLowerCase().includes(lowerQuery)) {
+      return row.text;
     }
   }
 
-  return bestScore > 0.4 ? bestAnswer : null;
+  // 2️⃣ SEMANTIC MATCH (INDIRECT QUESTIONS)
+  const queryEmbedding = await getEmbedding(query);
+
+  let bestScore = 0;
+  let bestText: string | null = null;
+
+  for (const row of knowledge) {
+    const emb = await getEmbedding(row.text);
+    const score = cosineSimilarity(queryEmbedding, emb);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestText = row.text;
+    }
+  }
+
+  if (bestScore >= SIMILARITY_THRESHOLD) {
+    return bestText;
+  }
+
+  return null;
 }

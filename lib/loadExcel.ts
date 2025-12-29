@@ -1,28 +1,15 @@
 import * as XLSX from "xlsx";
 import path from "path";
-import fs from "fs";
 
-type KnowledgeItem = {
-  keyword: string;
-  answer: string;
+export type KnowledgeRow = {
+  text: string;
 };
 
-export function loadExcelKnowledge(): KnowledgeItem[] {
-  try {
-    const filePath = path.join(process.cwd(), "data", "knowledge.xlsx");
+export function loadKnowledge(): KnowledgeRow[] {
+  const filePath = path.join(process.cwd(), "data", "knowledge.xlsx");
+  const workbook = XLSX.readFile(filePath);
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json<KnowledgeRow>(sheet);
 
-    // 🛑 Guard: file must exist
-    if (!fs.existsSync(filePath)) {
-      console.warn("Excel file not found");
-      return [];
-    }
-
-    const workbook = XLSX.readFile(filePath);
-    const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
-    return XLSX.utils.sheet_to_json(sheet) as KnowledgeItem[];
-  } catch (error) {
-    console.error("Excel load error:", error);
-    return []; // NEVER crash API
-  }
+  return data.filter(row => row.text?.trim());
 }
