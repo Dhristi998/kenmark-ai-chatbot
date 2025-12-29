@@ -6,9 +6,9 @@ export async function POST(req: Request) {
   try {
     const { message } = await req.json();
 
-    console.log("Incoming message:", message);
-
     const context = await retrieveContext(message);
+    console.log("Retrieved context:", context);
+
     const reply = await generateAnswer(context, message);
 
     return NextResponse.json({ reply });
