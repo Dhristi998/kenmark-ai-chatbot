@@ -5,16 +5,15 @@ export async function getEmbedding(text: string): Promise<number[]> {
       method: "POST",
       headers: {
         Authorization: `Bearer ${process.env.HF_API_KEY}`,
-        "Content-Type": "application/json",
+        "Content-Type": "application/json"
       },
-      body: JSON.stringify({ inputs: text }),
+      body: JSON.stringify({ inputs: text })
     }
   );
 
   const data = await response.json();
 
-  // HF may return number[] or number[][]
-  if (Array.isArray(data[0])) {
+  if (Array.isArray(data) && Array.isArray(data[0])) {
     return data[0];
   }
 
