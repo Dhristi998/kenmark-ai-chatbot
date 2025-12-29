@@ -13,8 +13,8 @@ export async function getEmbedding(text: string): Promise<number[]> {
 
   const data = await response.json();
 
-  // HF sometimes returns number[] or number[][]
-  if (Array.isArray(data) && Array.isArray(data[0])) {
+  // HF may return number[] or number[][]
+  if (Array.isArray(data[0])) {
     return data[0];
   }
 

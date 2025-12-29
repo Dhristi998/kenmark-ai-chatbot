@@ -1,5 +1,4 @@
-import knowledge from "../data/knowledge.json";
-import { loadExcelKnowledge } from "./loadExcel";
+import knowledge from "@/data/knowledge.json";
 import { getEmbedding } from "./embed";
 import { cosineSimilarity } from "./similarity";
 
@@ -8,51 +7,47 @@ type KnowledgeItem = {
   answer: string;
 };
 
-const embeddingCache = new Map<string, number[]>();
+let cachedEmbeddings:
+  | { vector: number[]; text: string }[]
+  | null = null;
 
-async function cachedEmbedding(text: string) {
-  if (!embeddingCache.has(text)) {
-    embeddingCache.set(text, await getEmbedding(text));
+async function prepareEmbeddings(data: KnowledgeItem[]) {
+  if (cachedEmbeddings) return cachedEmbeddings;
+
+  cachedEmbeddings = [];
+
+  for (const item of data) {
+    // ✅ KEY FIX: embed keyword + answer
+    const combinedText = `${item.keyword}. ${item.answer}`;
+    const vector = await getEmbedding(combinedText);
+
+    cachedEmbeddings.push({
+      vector,
+      text: item.answer,
+    });
   }
-  return embeddingCache.get(text)!;
+
+  return cachedEmbeddings;
 }
 
 export async function retrieveContext(query: string): Promise<string | null> {
-  const q = query.toLowerCase();
+  const queryEmbedding = await getEmbedding(query);
+  const embeddings = await prepareEmbeddings(knowledge as KnowledgeItem[]);
 
-  const combined: KnowledgeItem[] = [
-    ...(knowledge as KnowledgeItem[]),
-    ...loadExcelKnowledge()
-  ];
+  let bestScore = -1;
+  let bestAnswer: string | null = null;
 
-  // ✅ KEYWORD FAST PATH
-  const keywordMatch = combined.find(item =>
-    q.includes(item.keyword.toLowerCase())
-  );
-  if (keywordMatch) return keywordMatch.answer;
+  for (const item of embeddings) {
+    const score = cosineSimilarity(queryEmbedding, item.vector);
 
-  // ✅ SEMANTIC PATH
-  try {
-    const queryEmbedding = await cachedEmbedding(query);
-
-    let bestScore = 0;
-    let bestAnswer: string | null = null;
-
-    for (const item of combined) {
-      const answerEmbedding = await cachedEmbedding(item.answer);
-      const score = cosineSimilarity(queryEmbedding, answerEmbedding);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestAnswer = item.answer;
-      }
+    if (score > bestScore) {
+      bestScore = score;
+      bestAnswer = item.text;
     }
-
-    console.log("Semantic score:", bestScore);
-    return bestScore > 0.45 ? bestAnswer : null;
-
-  } catch (err) {
-    console.error("Semantic failed:", err);
-    return null;
   }
+
+  console.log("BEST SCORE:", bestScore);
+
+  // ✅ Lower threshold for MiniLM
+  return bestScore > 0.30 ? bestAnswer : null;
 }
