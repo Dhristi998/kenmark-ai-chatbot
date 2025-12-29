@@ -1,5 +1,4 @@
-import knowledge from "../data/knowledge.json";
-import { loadExcelKnowledge } from "./loadExcel";
+import knowledge from "@/data/knowledge.json";
 import { getEmbedding } from "./embed";
 import { cosineSimilarity } from "./similarity";
 
@@ -8,51 +7,42 @@ type KnowledgeItem = {
   answer: string;
 };
 
-const embeddingCache = new Map<string, number[]>();
+const THRESHOLD = 0.35;
+const cache = new Map<string, number[]>();
 
-async function cachedEmbedding(text: string) {
-  if (!embeddingCache.has(text)) {
-    embeddingCache.set(text, await getEmbedding(text));
+async function embedCached(text: string) {
+  if (!cache.has(text)) {
+    cache.set(text, await getEmbedding(text));
   }
-  return embeddingCache.get(text)!;
+  return cache.get(text)!;
 }
 
 export async function retrieveContext(query: string): Promise<string | null> {
   const q = query.toLowerCase();
+  const items = knowledge as KnowledgeItem[];
 
-  const combined: KnowledgeItem[] = [
-    ...(knowledge as KnowledgeItem[]),
-    ...loadExcelKnowledge()
-  ];
-
-  // ✅ KEYWORD FAST PATH
-  const keywordMatch = combined.find(item =>
-    q.includes(item.keyword.toLowerCase())
-  );
-  if (keywordMatch) return keywordMatch.answer;
-
-  // ✅ SEMANTIC PATH
-  try {
-    const queryEmbedding = await cachedEmbedding(query);
-
-    let bestScore = 0;
-    let bestAnswer: string | null = null;
-
-    for (const item of combined) {
-      const answerEmbedding = await cachedEmbedding(item.answer);
-      const score = cosineSimilarity(queryEmbedding, answerEmbedding);
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestAnswer = item.answer;
-      }
+  // ✅ 1. STRONG keyword matching
+  for (const item of items) {
+    if (q.includes(item.keyword.toLowerCase())) {
+      return item.answer;
     }
-
-    console.log("Semantic score:", bestScore);
-    return bestScore > 0.45 ? bestAnswer : null;
-
-  } catch (err) {
-    console.error("Semantic failed:", err);
-    return null;
   }
+
+  // ✅ 2. Semantic fallback
+  const qEmb = await embedCached(query);
+
+  let bestScore = 0;
+  let bestAnswer: string | null = null;
+
+  for (const item of items) {
+    const kEmb = await embedCached(item.keyword);
+    const score = cosineSimilarity(qEmb, kEmb);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestAnswer = item.answer;
+    }
+  }
+
+  return bestScore >= THRESHOLD ? bestAnswer : null;
 }
