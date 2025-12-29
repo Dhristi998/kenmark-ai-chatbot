@@ -1,5 +1,5 @@
 export async function getEmbedding(text: string): Promise<number[]> {
-  const res = await fetch(
+  const response = await fetch(
     "https://api-inference.huggingface.co/models/sentence-transformers/all-MiniLM-L6-v2",
     {
       method: "POST",
@@ -11,6 +11,16 @@ export async function getEmbedding(text: string): Promise<number[]> {
     }
   );
 
-  const data = await res.json();
-  return Array.isArray(data[0]) ? data[0] : data;
+  const data = await response.json();
+
+  if (data.error) {
+    throw new Error(data.error);
+  }
+
+  // 🔥 FIX: normalize HF response shape
+  if (Array.isArray(data[0])) {
+    return data[0];
+  }
+
+  return data;
 }

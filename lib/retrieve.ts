@@ -1,40 +1,58 @@
-import { loadKnowledge } from "./loadExcel";
+import knowledge from "../data/knowledge.json";
+import { loadExcelKnowledge } from "./loadExcel";
 import { getEmbedding } from "./embed";
 import { cosineSimilarity } from "./similarity";
 
-const SIMILARITY_THRESHOLD = 0.4;
+type KnowledgeItem = {
+  keyword: string;
+  answer: string;
+};
+
+const embeddingCache = new Map<string, number[]>();
+
+async function cachedEmbedding(text: string) {
+  if (!embeddingCache.has(text)) {
+    embeddingCache.set(text, await getEmbedding(text));
+  }
+  return embeddingCache.get(text)!;
+}
 
 export async function retrieveContext(query: string): Promise<string | null> {
-  const knowledge = loadKnowledge();
+  const q = query.toLowerCase();
 
-  // 1️⃣ DIRECT STRING MATCH (MOST IMPORTANT)
-  const lowerQuery = query.toLowerCase();
+  const combined: KnowledgeItem[] = [
+    ...(knowledge as KnowledgeItem[]),
+    ...loadExcelKnowledge()
+  ];
 
-  for (const row of knowledge) {
-    if (row.text.toLowerCase().includes(lowerQuery)) {
-      return row.text;
+  // ✅ KEYWORD FAST PATH
+  const keywordMatch = combined.find(item =>
+    q.includes(item.keyword.toLowerCase())
+  );
+  if (keywordMatch) return keywordMatch.answer;
+
+  // ✅ SEMANTIC PATH
+  try {
+    const queryEmbedding = await cachedEmbedding(query);
+
+    let bestScore = 0;
+    let bestAnswer: string | null = null;
+
+    for (const item of combined) {
+      const answerEmbedding = await cachedEmbedding(item.answer);
+      const score = cosineSimilarity(queryEmbedding, answerEmbedding);
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestAnswer = item.answer;
+      }
     }
+
+    console.log("Semantic score:", bestScore);
+    return bestScore > 0.45 ? bestAnswer : null;
+
+  } catch (err) {
+    console.error("Semantic failed:", err);
+    return null;
   }
-
-  // 2️⃣ SEMANTIC MATCH (INDIRECT QUESTIONS)
-  const queryEmbedding = await getEmbedding(query);
-
-  let bestScore = 0;
-  let bestText: string | null = null;
-
-  for (const row of knowledge) {
-    const emb = await getEmbedding(row.text);
-    const score = cosineSimilarity(queryEmbedding, emb);
-
-    if (score > bestScore) {
-      bestScore = score;
-      bestText = row.text;
-    }
-  }
-
-  if (bestScore >= SIMILARITY_THRESHOLD) {
-    return bestText;
-  }
-
-  return null;
 }
